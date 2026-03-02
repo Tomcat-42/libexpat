@@ -1,13 +1,20 @@
 const std = @import("std");
+const LinkMode = std.builtin.LinkMode;
 
-pub fn build(b: *std.Build) void {
+const manifest = @import("build.zig.zon");
+
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const linkage = b.option(std.builtin.LinkMode, "linkage", "Library linkage type") orelse .static;
-
-    const upstream = b.dependency("upstream", .{});
-    const lib_dir = upstream.path("expat/lib");
     const os = target.result.os.tag;
+
+    const options = .{
+        .linkage = b.option(LinkMode, "linkage", "Library linkage type") orelse
+            .static,
+    };
+
+    const upstream = b.dependency("libexpat_c", .{});
+    const lib_dir = upstream.path("expat/lib");
 
     const config_h = b.addConfigHeader(.{ .style = .blank, .include_path = "expat_config.h" }, .{
         .BYTEORDER = @as(i64, if (target.result.cpu.arch.endian() == .big) 4321 else 1234),
@@ -25,11 +32,17 @@ pub fn build(b: *std.Build) void {
     const mod = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
     mod.addConfigHeader(config_h);
     mod.addIncludePath(lib_dir);
-    mod.addCSourceFiles(.{ .root = lib_dir, .files = &.{ "xmlparse.c", "xmlrole.c", "xmltok.c" }, .flags = &(.{
-        "-std=c99", "-fvisibility=hidden", "-DHAVE_EXPAT_CONFIG_H",
-    } ++ .{if (linkage == .dynamic) "-DXML_ENABLE_VISIBILITY=1" else ""}) });
+    mod.addCMacro("HAVE_EXPAT_CONFIG_H", "");
+    mod.addCMacro("XML_STATIC", "");
+    if (options.linkage == .dynamic) mod.addCMacro("XML_ENABLE_VISIBILITY", "1");
+    mod.addCSourceFiles(.{ .root = lib_dir, .files = srcs, .flags = flags });
 
-    const lib = b.addLibrary(.{ .name = "expat", .root_module = mod, .linkage = linkage });
+    const lib = b.addLibrary(.{
+        .name = "expat",
+        .root_module = mod,
+        .linkage = options.linkage,
+        .version = try .parse(manifest.version),
+    });
     inline for (.{ "expat.h", "expat_external.h" }) |h| lib.installHeader(lib_dir.path(b, h), h);
     b.installArtifact(lib);
 }
@@ -37,3 +50,14 @@ pub fn build(b: *std.Build) void {
 inline fn opt(v: bool) ?bool {
     return if (v) true else null;
 }
+
+const flags: []const []const u8 = &.{
+    "-std=c99",
+    "-fvisibility=hidden",
+};
+
+const srcs: []const []const u8 = &.{
+    "xmlparse.c",
+    "xmlrole.c",
+    "xmltok.c",
+};

@@ -2,9 +2,9 @@
     .name = .libexpat,
     .version = "2.7.4",
     .dependencies = .{
-        .upstream = .{
+        .libexpat_c = .{
             .url = "https://github.com/libexpat/libexpat/archive/refs/tags/R_2_7_4.tar.gz",
-            .hash = "N-V-__8AANjCHQj1oMpE_I29zldqBmUK3sliVoCSbYN6S1qO",
+            .hash = "N-V-__8AAOCbHQjQYRmV8P8afGRUCrdj1TdqeolG6nsbwwaU",
         },
     },
     .paths = .{ "build.zig", "build.zig.zon", "README.md", "LICENSE" },
